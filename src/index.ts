@@ -5,21 +5,23 @@ import {
     SocketOptions as IOSocketOpt
 } from "socket.io-client";
 
-export type Socket = IOSocket;
+export type SocketInstance = IOSocket;
 export type ManagerOptions = IOManagerOpt;
 export type SocketOptions = IOSocketOpt;
 
 type SocketOptionsAlias = Partial<ManagerOptions & SocketOptions>;
 
-interface SocketType {
+export interface Socket {
     on(...args: any[]): void;
     emit(...args: any[]): void;
     once(...args: any[]): void;
     connect(...args: any[]): void;
-    socket: Socket;
+    socket: SocketInstance;
     options: SocketOptionsAlias | undefined;
     uri: string;
+    [propName: string]: any
 }
+
 interface SocketEventHandler {
     (...args: any[]): any
 }
@@ -61,7 +63,7 @@ let listenerProcData: ListenerProcData = {};
 /**
  * Socket instance 
  */
-let socketInstance: Socket;
+let socketInstance: SocketInstance;
 /**
  * The socket options provided
  */
@@ -95,7 +97,7 @@ let retryInterval: number = DEFAULT_RETRY_INTERVAL;
  * @param options  The socket options
  * @returns 
  */
-export const io = (uri: string, options?: SocketOptionsAlias): SocketType => {
+export const io = (uri: string, options?: SocketOptionsAlias): Socket => {
     if (options?.reconnectionDelay) {
         retryInterval = options?.reconnectionDelay;
     }
@@ -119,9 +121,9 @@ const onHandler: SocketListener = (event, listener): boolean => {
     if (eventMaps.has(event)) {
         /** Delete the event if we are already listening */
         socketInstance?.off(event);
-        socketInstance?.on(event, (data) => filterEvent(event, listener, data));
+        socketInstance?.on(event, (data: any) => filterEvent(event, listener, data));
     } else {
-        socketInstance?.on(event, (data) => filterEvent(event, listener, data));
+        socketInstance?.on(event, (data: any) => filterEvent(event, listener, data));
         eventMaps.set(event, listener);
     }
     return true;
@@ -194,7 +196,7 @@ const connect = (uri?: string, options?: SocketOptionsAlias): boolean => {
  * @param options The socket options
  * @returns {SocketType} a socket instance
  */
-const createSocketInstance = (uri: string, options?: SocketOptionsAlias): SocketType => {
+const createSocketInstance = (uri: string, options?: SocketOptionsAlias): Socket => {
     socketInstance = SocketIO(uri, options);
     /**
      * Set instance variables 
@@ -208,8 +210,11 @@ const createSocketInstance = (uri: string, options?: SocketOptionsAlias): Socket
         if (options?.autoConnect) {
             refreshListeners(eventMaps);
         }
-    })
+    });
+    type SocketTypes = typeof socketInstance;
+
     return {
+        ...socketInstance,
         on: onHandler,
         once: onceHandler,
         emit: emitHandler,
@@ -217,7 +222,7 @@ const createSocketInstance = (uri: string, options?: SocketOptionsAlias): Socket
         connect: connect,
         options: socketOptions,
         uri: socketUri
-    }
+    };
 }
 const refreshListeners = (eventMaps: EventMap) => {
     console.log("connection established");
